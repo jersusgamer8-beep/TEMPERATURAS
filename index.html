@@ -205,7 +205,7 @@ footer{text-align:center;color:var(--muted);font-size:.68rem;letter-spacing:2px;
         <div><button class="pb on" id="pbOn" disabled>ON</button>MARCHA</div>
         <div><button class="pb stop" id="pbStop" disabled>STOP</button>PARO</div>
       </div>
-      <p class="rule" style="text-align:center;margin-top:22px">Los pilotos se encienden al pulsar: <b>ON</b> enciende el verde y <b>STOP</b> enciende el rojo.</p>
+      <p class="rule" style="text-align:center;margin-top:22px">Los pilotos muestran el <b>estado real</b> confirmado por el PLC LOGO! (retorno al ESP32).</p>
     </div>
   </section>
 
@@ -331,9 +331,7 @@ signInAnonymously(auth).catch(e=>toast("Auth: "+e.code)).finally(()=>{
   onValue(ref(db,"/"), snap=>{
     const d = snap.val() || {};
     const c = d.control||{}, s=d.sensores||{}, e=d.estado||{};
-    const nuevoModo = c.modo ?? null;
-    if(nuevoModo==="MAN" && S.modo!=="MAN") S.manLamp = false;  // al entrar en manual arranca en OFF (rojo)
-    S.modo = nuevoModo;
+    S.modo = c.modo ?? null;
     S.releAut = !!c.rele_aut_on;
     S.t1 = s.temp1 ?? null; S.t2 = s.temp2 ?? null;
     S.motor = !!e.motor_real;
