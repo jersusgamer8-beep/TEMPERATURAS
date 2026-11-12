@@ -205,7 +205,7 @@ footer{text-align:center;color:var(--muted);font-size:.68rem;letter-spacing:2px;
         <div><button class="pb on" id="pbOn" disabled>ON</button>MARCHA</div>
         <div><button class="pb stop" id="pbStop" disabled>STOP</button>PARO</div>
       </div>
-      <p class="rule" style="text-align:center;margin-top:22px">Los pilotos muestran el <b>estado real</b> confirmado por el PLC LOGO! (retorno al ESP32).</p>
+      <p class="rule" style="text-align:center;margin-top:22px">Los pilotos se encienden al pulsar: <b>ON</b> enciende el verde y <b>STOP</b> enciende el rojo.</p>
     </div>
   </section>
 
@@ -232,7 +232,8 @@ const T_ON = 30, T_OFF = 20;      // umbrales de histéresis (°C)
 const T_MAX_BAR = 60;             // fondo de escala de la barra
 const OFFLINE_MS = 20000;         // tiempo sin heartbeat para considerar ESP32 offline
 
-const S = { modo:null, t1:null, t2:null, releAut:false, motor:false, hb:0, fb:false };
+// manLamp: estado LOCAL de los pilotos del panel manual (true = verde, false = rojo)
+const S = { modo:null, t1:null, t2:null, releAut:false, motor:false, hb:0, fb:false, manLamp:false };
 const $ = id => document.getElementById(id);
 
 const app = initializeApp(firebaseConfig);
@@ -256,8 +257,17 @@ $("btnAUT").onclick = ()=> wr("control", { modo:"AUT", cmd_man_on:false, cmd_man
 $("btnMAN").onclick = ()=> wr("control", { modo:"MAN", rele_aut_on:false });
 
 /* ---------- Pulsadores manuales ---------- */
-$("pbOn").onclick   = ()=>{ if(S.modo==="MAN") wr("control", { cmd_man_on:true }); };
-$("pbStop").onclick = ()=>{ if(S.modo==="MAN") wr("control", { cmd_man_stop:true }); };
+// El piloto cambia al instante al pulsar, sin esperar el retorno del PLC
+$("pbOn").onclick = ()=>{
+  if(S.modo!=="MAN") return;
+  S.manLamp = true; render();
+  wr("control", { cmd_man_on:true });
+};
+$("pbStop").onclick = ()=>{
+  if(S.modo!=="MAN") return;
+  S.manLamp = false; render();
+  wr("control", { cmd_man_stop:true });
+};
 
 /* ---------- Lógica automática (histéresis) ---------- */
 function tempMax(){
@@ -308,11 +318,11 @@ function render(){
   setTemp("t1","b1",S.t1); setTemp("t2","b2",S.t2);
   setLamp("lampAutG","lblAutG", !!S.releAut);
   setLamp("lampAutR","lblAutR", !S.releAut);
-  // página 3
+  // página 3 (pilotos con estado local)
   $("lock3").classList.toggle("show", modo!=="MAN");
   $("pbOn").disabled = $("pbStop").disabled = (modo!=="MAN");
-  setLamp("lampManG","lblManG", !!S.motor);
-  setLamp("lampManR","lblManR", !S.motor);
+  setLamp("lampManG","lblManG", S.manLamp);
+  setLamp("lampManR","lblManR", !S.manLamp);
 }
 
 /* ---------- Suscripción Firebase ---------- */
@@ -321,7 +331,9 @@ signInAnonymously(auth).catch(e=>toast("Auth: "+e.code)).finally(()=>{
   onValue(ref(db,"/"), snap=>{
     const d = snap.val() || {};
     const c = d.control||{}, s=d.sensores||{}, e=d.estado||{};
-    S.modo = c.modo ?? null;
+    const nuevoModo = c.modo ?? null;
+    if(nuevoModo==="MAN" && S.modo!=="MAN") S.manLamp = false;  // al entrar en manual arranca en OFF (rojo)
+    S.modo = nuevoModo;
     S.releAut = !!c.rele_aut_on;
     S.t1 = s.temp1 ?? null; S.t2 = s.temp2 ?? null;
     S.motor = !!e.motor_real;
